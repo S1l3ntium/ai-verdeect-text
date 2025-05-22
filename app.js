@@ -8,42 +8,22 @@ const [PI_DOUBLE, PI_HALF, PI_QUARTER] = [
 const COLOR_MAX = 255;
 const BASE_COLOR = [0.462, 0.051, 1];
 
-const getRGB = ([red, green, blue]: [number, number, number]) =>
+const getRGB = ([red, green, blue]) =>
   `rgb(${Math.floor(red * COLOR_MAX)}, ${Math.floor(
     green * COLOR_MAX
   )}, ${Math.floor(blue * COLOR_MAX)})`;
 
-interface IPoint {
-  x: number;
-  y: number;
-}
-
-interface IVector extends IPoint {
-  readonly length: number;
-  multiply(vector: IPoint): void;
-  add(vector: IPoint): void;
-  distanceTo(vector: IPoint): number;
-  angleTo(vector: IPoint): number;
-}
-
-class Vector implements IVector {
-  private static getLength(x: number, y: number): number {
+class Vector {
+  static getLength(x, y) {
     return Math.sqrt(x * x + y * y);
   }
 
-  public static getDistance(pointA: IPoint, pointB: IPoint): number {
+  static getDistance(pointA, pointB) {
     return Vector.getLength(pointA.x - pointB.x, pointA.y - pointB.y);
   }
 
-  public static getDifference(pointA: IPoint, pointB: IPoint): IVector {
+  static getDifference(pointA, pointB) {
     return new Vector(pointA.x - pointB.x, pointA.y - pointB.y);
-  }
-
-  x: number;
-  y: number;
-
-  get length(): number {
-    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
 
   constructor(x = 0, y = 0) {
@@ -51,62 +31,52 @@ class Vector implements IVector {
     this.y = y;
   }
 
-  add({ x, y }: IPoint) {
-    this.x += x;
-    this.y += y;
+  get length() {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
 
-  multiply(value: number) {
+  add(vector) {
+    this.x += vector.x;
+    this.y += vector.y;
+  }
+
+  multiply(value) {
     this.x *= value;
     this.y *= value;
   }
 
-  angleTo(vector: IPoint): number {
+  angleTo(vector) {
     return Math.atan2(vector.y - this.y, vector.x - this.x);
   }
 
-  distanceTo(vector: IPoint): number {
+  distanceTo(vector) {
     return Vector.getDistance(this, vector);
   }
 }
 
-class Particle implements IVector {
-  public radius: number = 1;
-  public mass: number = 1;
+class Particle {
+  constructor({ position, radius, damping }) {
+    this.position = new Vector(position.x, position.y);
+    this.radius = radius;
+    this.damping = damping;
+    this.mass = 1;
+    this.acceleration = new Vector();
+    this.velocity = new Vector();
+    this.gravityObjects = [];
+  }
 
-  public position: IVector;
-  public acceleration: IVector = new Vector();
-  public velocity: IVector = new Vector();
-  public damping: number = 0;
-  public gravityObjects: Particle[] = [];
-
-  get x(): number {
+  get x() {
     return this.position.x;
   }
 
-  get y(): number {
+  get y() {
     return this.position.y;
-  }
-
-  constructor({
-    position: { x, y },
-    radius,
-    damping
-  }: {
-    position: IPoint;
-    radius: number;
-    damping: number;
-  }) {
-    this.position = new Vector(x, y);
-    this.radius = radius;
-    this.damping = damping;
   }
 
   applyPhysic() {
     this.gravityObjects.forEach((gravityObject) => {
-      //const distance = Vector.getDistance(gravityObject, this);
       const rawDistance = Vector.getDistance(gravityObject, this);
-      const distance = Math.max(rawDistance, 20); // ← минимальная дистанция, чтобы избежать бесконечно сильного отталкивания
+      const distance = Math.max(rawDistance, 20);
       const angle = this.position.angleTo(gravityObject);
       const force =
         (gravityObject.mass + this.mass) / (distance * distance) || 0;
@@ -123,30 +93,12 @@ class Particle implements IVector {
   }
 }
 
-class Spring extends Particle implements IVector {
-  force: IVector;
-  center: IVector;
-  stiffness: number = 1;
-
-  private weight: IVector;
-
-  constructor({
-    position,
-    center,
-    radius,
-    stiffness,
-    damping
-  }: {
-    position: IPoint;
-    center: IPoint;
-    radius: number;
-    stiffness: number;
-    damping: number;
-  }) {
+class Spring extends Particle {
+  constructor({ position, center, radius, stiffness, damping }) {
     super({ position, radius, damping });
-
     this.center = new Vector(center.x, center.y);
     this.stiffness = stiffness;
+    this.force = new Vector();
   }
 
   applyPhysic() {
@@ -183,7 +135,6 @@ function main() {
   const MAX_OFFSET_X = 40;
   const MAX_OFFSET_Y = 10;
 
-  //const texture = getTextTexture("HELL O WORLD", 80);
   const texture = getTextTexture("Нейросеть\nвнутри вашей\nкомпании", 80);
   const center = {
     x: width / 2,
@@ -213,19 +164,19 @@ function main() {
         const angle = Math.random() * PI_DOUBLE;
         const distance = Math.random() * MAX_DISTANCE;
 
-        const center = {
+        const centerPos = {
           x: i * BLOCK_SIZE + (width - texture.width) / 2,
           y: j * BLOCK_SIZE + (height - texture.height) / 2
         };
         const position = {
-          x: center.x + (Math.random() - Math.random()) * MAX_OFFSET_X,
-          y: center.y + (Math.random() - Math.random()) * MAX_OFFSET_Y
+          x: centerPos.x + (Math.random() - Math.random()) * MAX_OFFSET_X,
+          y: centerPos.y + (Math.random() - Math.random()) * MAX_OFFSET_Y
         };
 
         const particle = new Spring({
           position,
           radius,
-          center,
+          center: centerPos,
           stiffness,
           damping
         });
@@ -241,8 +192,6 @@ function main() {
     repulsor.position.x = clientX;
     repulsor.position.y = clientY;
   });
-
-  const maxRadius = Math.sqrt(((texture.width / 2) * texture.width) / 2);
 
   const backgroundColor = getBackgroundColor(context, width, height);
 
@@ -285,26 +234,10 @@ function main() {
   step(context);
 }
 
-//function getTextTexture(text: string, fontSize: number) {
-//  const canvasEl = new OffscreenCanvas(1024, 768);
-//  const context = canvasEl.getContext("2d");
-
-//  context.fillStyle = "#FFFFFF";
-//context.textAlign = "left";
-//context.textBaseline = "top";
-//context.font = `bold ${fontSize}px Arial`;
-//context.fillText(text, 0, 0);
-
-//const { width } = context.measureText(text);
-
-//return context.getImageData(0, 0, width, fontSize);
-//}
-
-function getTextTexture(text: string, fontSize: number) {
-  const lines = text.split("\n"); // разбиваем по строкам
+function getTextTexture(text, fontSize) {
+  const lines = text.split("\n");
   const lineHeight = fontSize * 1.2;
 
-  // Вычисляем максимальную ширину строки
   const canvasEl = new OffscreenCanvas(1024, 768);
   const context = canvasEl.getContext("2d");
 
@@ -314,7 +247,6 @@ function getTextTexture(text: string, fontSize: number) {
   );
   const totalHeight = lines.length * lineHeight;
 
-  // Подгоняем размер канваса
   canvasEl.width = Math.ceil(maxWidth);
   canvasEl.height = Math.ceil(totalHeight);
 
@@ -330,7 +262,7 @@ function getTextTexture(text: string, fontSize: number) {
   return context.getImageData(0, 0, canvasEl.width, canvasEl.height);
 }
 
-function getBackgroundColor(context, width: number, height: number) {
+function getBackgroundColor(context, width, height) {
   const gradient = context.createRadialGradient(
     width / 2,
     height / 2,
